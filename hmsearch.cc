@@ -40,7 +40,7 @@
 class HmSearchImpl : public HmSearch
 {
 public:
-    HmSearchImpl(kyotocabinet::PolyDB* db, int hash_bits, int max_error)
+    HmSearchImpl(kyotocabinet::HashDB* db, int hash_bits, int max_error)
         : _db(db)
         , _hash_bits(hash_bits)
         , _max_error(max_error)
@@ -84,7 +84,7 @@ private:
     
     int get_partition_key(const hash_string& hash, int partition, uint8_t *key);
 
-    kyotocabinet::PolyDB* _db;
+    kyotocabinet::HashDB* _db;
     int _hash_bits;
     int _max_error;
     int _hash_bytes;
@@ -139,6 +139,7 @@ bool HmSearch::init(const std::string& path,
     int64_t buckets = std::max(int64_t(keys) / bucket_size, int64_t(512) << 20 / bucket_size);  
 
     db->tune_buckets(buckets);
+    db->tune_defrag(8);
 
     // Smaller database and quicker inserts, no big effect on lookups
     db->tune_options(kyotocabinet::HashDB::TLINEAR);
@@ -185,13 +186,14 @@ HmSearch* HmSearch::open(const std::string& path,
     }
     *error_msg = "";
 
-    std::auto_ptr<kyotocabinet::PolyDB> db(new kyotocabinet::PolyDB);
+    std::auto_ptr<kyotocabinet::HashDB> db(new kyotocabinet::HashDB);
     if (!db.get()) {
         return NULL;
     }
 
     // Increase mmap from 64M to 512M
-    //db->tune_map(int64_t(512) << 20);
+    db->tune_map(int64_t(1024) << 20);
+db->tune_defrag(8);
 
     if (!db->open(path, (mode == READONLY ?
                          kyotocabinet::BasicDB::OREADER :
